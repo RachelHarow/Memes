@@ -1,37 +1,49 @@
 #include "utils.h"
-static char search_query[200] = ""; // Search query buffer
-bool show_generated_memes = false;
+static char search_query[200] = ""; // Buffer to hold the search query
+bool show_generated_memes = false; // Flag to toggle display of generated memes
+
+// Main entry point for the application
 int main(int, char**) {
+    // Fetch meme data from the API
     FetchMemeData();
 
+    // Register window class
     WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
     ::RegisterClassExW(&wc);
     HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Meme Generator", WS_OVERLAPPEDWINDOW, 0, 0, 1550, 800, nullptr, nullptr, wc.hInstance, nullptr);
 
+    // Create Direct3D device
     if (!CreateDeviceD3D(hwnd)) {
         CleanupDeviceD3D();
         ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
         return 1;
     }
 
+    // Show and update the window
     ::ShowWindow(hwnd, SW_SHOWDEFAULT);
     ::UpdateWindow(hwnd);
 
+    // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable keyboard controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable gamepad controls
 
+    // Set ImGui style
     ImGui::StyleColorsLight();
 
+    // Initialize ImGui for Win32 and Direct3D
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX9_Init(g_pd3dDevice);
 
+    // Customize ImGui style
     CustomizeImGuiStyle();
 
+    // Load meme textures
     LoadMemeTextures();
 
+    // Set clear color for the window background
     ImVec4 clear_color = ImVec4(0.89f, 0.95f, 1.00f, 1.00f);
 
     // Main loop
@@ -72,17 +84,18 @@ int main(int, char**) {
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        // Search bar and meme data table
+        // Main UI section
         if (fullscreen_image_url.empty() && create_meme_url.empty()) {
             ImGui::Begin("Meme Data Table", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
             ImGui::Text("Search for a meme:");
-            ImGui::InputText("##Search", search_query, IM_ARRAYSIZE(search_query));
+            ImGui::InputText("##Search", search_query, IM_ARRAYSIZE(search_query)); // Search bar for filtering memes
             ImGui::Spacing();
             // Add button to show all generated memes
             if (ImGui::Button("Show Generated Memes")) {
                 show_generated_memes = !show_generated_memes;
             }
 
+            // Display meme data table
             if (ImGui::BeginTable("MemeTable", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable | ImGuiTableFlags_SortMulti)) {
                 ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_PreferSortDescending);
                 ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
@@ -103,6 +116,7 @@ int main(int, char**) {
 
                 bool meme_found = false;
 
+                // Display meme rows
                 for (const auto& meme : meme_data["data"]["memes"]) {
                     std::string name = meme["name"].get<std::string>();
                     if (strstr(name.c_str(), search_query) != nullptr) {
@@ -114,20 +128,20 @@ int main(int, char**) {
                         {
                             std::string url = meme["url"].get<std::string>();
                             std::string id = meme["id"].get<std::string>(); // Extract template ID
-                            if (viewed_images.find(url) == viewed_images.end()) {//if the meme is not found in viewed_images
+                            if (viewed_images.find(url) == viewed_images.end()) { // Check if meme is not already viewed
                                 if (ImGui::Button(("See Image##" + meme["id"].get<std::string>()).c_str())) {
                                     seen_images.insert(url);
                                     viewed_images.insert(url);
                                 }
                             }
-                            else {//if i saw already the image
+                            else { // If meme has been viewed
                                 LPDIRECT3DTEXTURE9 texture = GetMemeTexture(url);
                                 if (texture) {
                                     if (ImGui::ImageButton((void*)texture, ImVec2(100, 100))) {
-                                        fullscreen_image_url = url;//now we can show the image in full screen if you click
+                                        fullscreen_image_url = url; // Show image in full screen on click
                                     }
                                     if (ImGui::Button(("Create Meme##" + meme["id"].get<std::string>()).c_str())) {
-                                        create_meme_url = id; // Set template ID
+                                        create_meme_url = id; // Set template ID for meme creation
                                         text_boxes.clear();
                                         int box_count = meme["box_count"].get<int>();
                                         text_boxes.resize(box_count);
@@ -159,6 +173,7 @@ int main(int, char**) {
             ImGui::Spacing();
             ImGui::End();
 
+            // Show generated memes if the flag is set
             if (show_generated_memes) {
                 ImGui::SameLine();
                 ImGui::Begin("Generated Memes", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
@@ -179,6 +194,7 @@ int main(int, char**) {
             }
         }
         else if (!create_meme_url.empty()) {
+            // Meme creation UI
             ImGui::Begin("Create Meme", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
             ImGui::Text("Enter text for the meme:");
             for (size_t i = 0; i < text_boxes.size(); ++i) {
@@ -202,8 +218,8 @@ int main(int, char**) {
             ImGui::End();
         }
 
+        // Display fullscreen image
         if (!fullscreen_image_url.empty()) {
-            // Display fullscreen image
             LPDIRECT3DTEXTURE9 texture = GetMemeTexture(fullscreen_image_url);
             if (texture) {
                 ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
@@ -217,6 +233,7 @@ int main(int, char**) {
             }
         }
 
+        // Render ImGui frame
         ImGui::EndFrame();
         g_pd3dDevice->SetRenderState(D3DRS_ZENABLE, FALSE);
         g_pd3dDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
@@ -233,6 +250,7 @@ int main(int, char**) {
             g_DeviceLost = true;
     }
 
+    // Cleanup
     ImGui_ImplDX9_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

@@ -8,14 +8,16 @@
 
 // Include imgui_impl_win32.h
 #include "imgui_impl_win32.h"
-//#include <imgui_impl_win32.cpp>
+//#include <imgui_impl_win32.cpp> // This should be included elsewhere in the project
 
+// Global variables for Direct3D9 interface
 LPDIRECT3D9 g_pD3D = nullptr;
 LPDIRECT3DDEVICE9 g_pd3dDevice = nullptr;
-bool g_DeviceLost = false;
+bool g_DeviceLost = false; // Flag for device lost state
 D3DPRESENT_PARAMETERS g_d3dpp = {};
 UINT g_ResizeWidth = 0, g_ResizeHeight = 0;
 
+// Data structures for meme handling
 nlohmann::json meme_data;
 std::unordered_map<std::string, LPDIRECT3DTEXTURE9> meme_textures;
 std::unordered_set<std::string> seen_images;
@@ -26,8 +28,9 @@ std::string create_meme_url = "";
 std::vector<std::string> text_boxes;
 std::mutex meme_mutex;
 std::condition_variable cv;
-bool isReady = false;
+bool isReady = false; // Flag to indicate meme data is ready
 
+// Function to create a Direct3D9 device
 bool CreateDeviceD3D(HWND hWnd) {
     if ((g_pD3D = Direct3DCreate9(D3D_SDK_VERSION)) == nullptr) {
         return false;
@@ -49,11 +52,13 @@ bool CreateDeviceD3D(HWND hWnd) {
     return true;
 }
 
+// Function to clean up Direct3D9 device
 void CleanupDeviceD3D() {
     if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = nullptr; }
     if (g_pD3D) { g_pD3D->Release(); g_pD3D = nullptr; }
 }
 
+// Function to reset Direct3D9 device
 void ResetDevice() {
     ImGui_ImplDX9_InvalidateDeviceObjects();
     HRESULT hr = g_pd3dDevice->Reset(&g_d3dpp);
@@ -66,6 +71,7 @@ void ResetDevice() {
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+// Windows procedure function to handle various messages
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))  // Ensure this function is recognized
         return true;
@@ -88,6 +94,7 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return ::DefWindowProcW(hWnd, msg, wParam, lParam);
 }
 
+// Function to fetch meme data from Imgflip API
 void FetchMemeData() {
     httplib::SSLClient client("api.imgflip.com");
     auto res = client.Get("/get_memes");
@@ -102,6 +109,7 @@ void FetchMemeData() {
     }
 }
 
+// Function to load texture from memory
 LPDIRECT3DTEXTURE9 LoadTextureFromMemory(unsigned char* image_data, int image_width, int image_height) {
     if (!image_data) {
         return nullptr;
@@ -155,8 +163,9 @@ LPDIRECT3DTEXTURE9 LoadTextureFromMemory(unsigned char* image_data, int image_wi
     return texture;
 }
 
+// Function to load texture from a URL
 LPDIRECT3DTEXTURE9 LoadTextureFromURL(const std::string& url) {
-    std::string domain = url.substr(8);
+    std::string domain = url.substr(8); // Extract domain from URL
     size_t pos = domain.find('/');
     std::string path = domain.substr(pos);
     domain = domain.substr(0, pos);
@@ -175,6 +184,7 @@ LPDIRECT3DTEXTURE9 LoadTextureFromURL(const std::string& url) {
     return nullptr;
 }
 
+// Function to load meme textures
 void LoadMemeTextures() {
     std::unique_lock<std::mutex> lock(meme_mutex);
     cv.wait(lock, [] {return isReady; });
@@ -184,6 +194,7 @@ void LoadMemeTextures() {
     }
 }
 
+// Function to get meme texture, loading it if necessary
 LPDIRECT3DTEXTURE9 GetMemeTexture(const std::string& url) {
     if (meme_textures[url] == nullptr) {
         meme_textures[url] = LoadTextureFromURL(url);
@@ -191,6 +202,7 @@ LPDIRECT3DTEXTURE9 GetMemeTexture(const std::string& url) {
     return meme_textures[url];
 }
 
+// Comparison function for sorting memes
 int CompareMemes(const void* a, const void* b) {
     const nlohmann::json* memeA = static_cast<const nlohmann::json*>(a);
     const nlohmann::json* memeB = static_cast<const nlohmann::json*>(b);
@@ -215,6 +227,7 @@ int CompareMemes(const void* a, const void* b) {
     return 0;
 }
 
+// Function to save generated memes to a file
 void SaveGeneratedMemes() {
     std::ofstream file("generated_memes.txt");
     if (file.is_open()) {
@@ -225,6 +238,7 @@ void SaveGeneratedMemes() {
     }
 }
 
+// Function to create a meme using Imgflip API
 std::string CreateMeme(const std::string& template_id, const std::vector<std::string>& text) {
     std::string username = "welovecpp";
     std::string password = "welovecpp";
@@ -271,6 +285,7 @@ std::string CreateMeme(const std::string& template_id, const std::vector<std::st
     return "";
 }
 
+// Function to customize ImGui style
 void CustomizeImGuiStyle() {
     ImGuiStyle& style = ImGui::GetStyle();
     style.FrameRounding = 5.0f;
@@ -281,5 +296,3 @@ void CustomizeImGuiStyle() {
     style.Colors[ImGuiCol_Button] = ImVec4(0.53f, 0.81f, 0.98f, 1.0f);
     style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.55f, 0.85f, 0.99f, 1.0f);
 }
-
-
